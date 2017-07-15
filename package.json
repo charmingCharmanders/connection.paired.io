@@ -1,0 +1,41 @@
+{
+  "name": "course.thesis",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "curl -s https://raw.githubusercontent.com/reactorcore/pomander/master/bin/install | bash",
+    "start": "nodemon index.js",
+    "test": "NODE_ENV=test grunt test",
+    "build": "webpack --watch"
+  },
+  "author": "Hack Reactor",
+  "license": "MIT",
+  "dependencies": {
+    "bluebird": "^3.5.0",
+    "body-parser": "^1.17.1",
+    "config": "^1.26.1",
+    "connect-flash": "^0.1.1",
+    "connect-redis": "^3.2.0",
+    "cookie-parser": "^1.4.3",
+    "express": "^4.15.2",
+    "express-session": "^1.15.1",
+    "grunt-pg": "https://github.com/watsoncj/grunt-pg.git",
+    "knex": "^0.12.9",
+    "morgan": "^1.8.1",
+    "pg": "^6.1.5",
+    "redis": "^2.7.1"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "grunt": "~0.4.5",
+    "grunt-eslint": "^19.0.0",
+    "grunt-mocha-test": "^0.13.2",
+    "mocha": "^3.2.0",
+    "node-mocks-http": "^1.6.1",
+    "supertest": "^3.0.0"
+  },
+  "babel": {
+    "plugins": [
+      "transform-es2015-modules-commonjs"
+    ]
+  }
+}
