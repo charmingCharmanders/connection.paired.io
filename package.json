@@ -12,6 +12,7 @@
   "dependencies": {
     "bluebird": "^3.5.0",
     "body-parser": "^1.17.1",
+    "bookshelf": "^0.10.4",
     "config": "^1.26.1",
     "connect-flash": "^0.1.1",
     "connect-redis": "^3.2.0",
