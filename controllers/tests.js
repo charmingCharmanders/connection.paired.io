@@ -1,28 +1,27 @@
 const models = require('../db/models');
 
-module.exports.getAll = (req, res) => {
+module.exports.getAll = () => {
   models.Test.fetchAll()
     .then(tests => {
-      res.status(200).send(tests);
+      return tests;
     })
     .catch(err => {
       // This code indicates an outside service (the database) did not respond in time
-      res.status(503).send(err);
+      return err;
     });
 };
 
-// module.exports.getOne = (req, res) => {
-//   models.User.where({ id: req.params.id }).fetch()
-//     .then(user => {
-//       if (!user) {
-//         throw user;
-//       }
-//       res.status(200).send(user);
-//     })
-//     .error(err => {
-//       res.status(500).send(err);
-//     })
-//     .catch(() => {
-//       res.sendStatus(404);
-//     });
-// };
+
+module.exports.getAllByPromptId = (prompt_id) => {
+  // console.log(req.params.prompt_id);
+  models.Test.where({ promptId: prompt_id }).fetchAll()
+    .then(test => {
+      if (!test) {
+        throw test;
+      }
+      return test;
+    })
+    .error(err => {
+      return err;
+    })
+};
