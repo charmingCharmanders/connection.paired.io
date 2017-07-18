@@ -23,7 +23,8 @@
     "knex": "^0.12.9",
     "morgan": "^1.8.1",
     "pg": "^6.1.5",
-    "redis": "^2.7.1"
+    "redis": "^2.7.1",
+    "socket.io": "^2.0.3"
   },
   "devDependencies": {
     "chai": "^3.5.0",
