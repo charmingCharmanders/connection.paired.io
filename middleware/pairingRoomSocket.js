@@ -1,135 +1,78 @@
 var PairingRoom = require('../socketModels/pairingRooms.js');
 
-class PairingRoomSocket {
+//we don't need to keep track of old room
 
-  constructor(io, numberOfRooms) {
+class PairingRoomSocket {
+  constructor(io) {
     this.io = io;
-    this.createRooms(numberOfRooms);
+    this.roomCount = 0;
+    this.queuedRooms = [];
   }
 
-  createRooms(numberOfRooms) {
-    this.pairingRooms = [];
-    for (var i = 0; i < numberOfRooms; i++) {
-      this.pairingRooms.push(new PairingRoom(i));
+  isRoomAvailable(){
+    if(this.queuedRooms.length > 0) {
+      return true;
+    } else {
+      return false;  
     }
   }
 
-  getAvailableRooms() {
-    return this.pairingRooms.filter((pairingRoom, index) => {
-      return !pairingRoom.isFull();
-    });
+  addPlayer(playerId) {
+    if(this.isRoomAvailable()){
+      return this.fillAvailable(playerId);
+    } else {
+      return this.addNewRoom(playerId);
+    }
   }
 
-  // getMatchingRooms() {
-  //   return this.pairingRooms.filter((pairingRoom, index) => {
-  //     return !pairingRoom.isFull();
-  //   });
-  // }
-
-  getFirstAvailableRoom() {
-    return this.getAvailableRooms()[0];
+  addNewRoom(playerId) {
+    var room = new PairingRoom(++this.roomCount);
+    room.addPlayer(playerId, 2);
+    this.queuedRooms.push(room);
+    return room;
   }
 
-  startSession(socket) {
-    console.log("running start session");
-    socket.on('start session', (msg) => {
-      var pairingRoom = this.getFirstAvailableRoom();
-      if (!pairingRoom) {
-        socket.emit('session started', false);
-      } else {
-        socket.emit('session started', true, pairingRoom.getRoomId());
-      }
-    });
-  }
-
-  //TODO FIX
-  // joinGame(socket) {
-  //   socket.on('join game', (bodyPartChosen, roomId) => {
-  //     var gameRoom = this.gameRooms[roomId];
-  //     if (gameRoom.bodyPartAvailable(bodyPartChosen)) {
-  //       socket.join(`gameRoom${roomId}`);
-  //       gameRoom.addPlayer(socket.id, bodyPartChosen);
-  //       socket.emit('join game', true, bodyPartChosen, 3 - gameRoom.playersInRoom());
-  //       this.playerJoined(socket, gameRoom, roomId);
-  //     } else {
-  //       socket.emit('join game', false);
-  //     }
-  //   });
-  // }
-
-  // leaveGame(socket) {
-  //   socket.on('leave game', (roomId) => {
-  //     var gameRoom = this.gameRooms[roomId];
-  //     gameRoom.removePlayer(socket.id);
-  //     this.io.to(`gameRoom${roomId}`).emit('player joined', 3 - gameRoom.playersInRoom());
-  //   });
-  // }
-
-  // disconnect(socket) {
-  //   socket.on('disconnecting', () => {
-  //     Object.keys(socket.rooms).forEach((room, index) => {
-  //       if (index > 0) {
-  //         var roomIndex = /\d+/.exec(room);
-  //         var gameRoom = this.gameRooms[parseInt(roomIndex[0])];
-  //         gameRoom.removePlayer(socket.id);
-  //         console.log('game left: ', roomIndex);
-  //         this.io.to(`gameRoom${roomIndex}`).emit('player joined', 3 - gameRoom.playersInRoom());
-  //       }
-  //     });
-  //   });
-  // }
-
-  // playerJoined(socket, gameRoom, roomId) {
-  //   if (gameRoom.playersInRoom() < 3) {
-  //     this.io.to(`gameRoom${roomId}`).emit('player joined', 3 - gameRoom.playersInRoom());
-  //   } else {
-  //     this.io.to(`gameRoom${roomId}`).emit('starting game', 50);
-  //   }
-  // }
-
-  gameEnd(socket) {
-    socket.on('game end', (userImage) => {
-      var pairingRoom = this.getSocketPairingRoom(socket);
-      var roomName = this.getSocketGameRoomName(socket);
-      // this.io.to(roomName).emit('image complete', gameRoom.image);
-      // gameRoom.deleteImage();
-    });
-  }
-
-  getSocketPairingRoomName(socket) {
-    return Object.keys(socket.rooms)[1];
-  }
-
-  getSocketPairingRoomId(socket) {
-    return parseInt(/\d+/.exec(this.getSocketPairingRoomName(socket)));
-  }
-
-  getSocketPairingRoom(socket) {
-    return this.gameRooms[this.getSocketPairingRoomId(socket)];
+  fillAvailable(playerId) {
+    var room = this.queuedRooms.pop();
+    room.addPlayer(playerId, 2);
+    return room;
   }
 
 };
 
 module.exports.init = (io) => {
-  const pairingRoomSocket = new PairingRoomSocket(io, 10);
+  const pairingRoomSocket = new PairingRoomSocket(io);
   console.log("running init, so waiting for a connection");
-  io.on('connect', (socket) => {
+  
+  io.on('connection', (socket) => {
     console.log(socket.id, ' user connected!');
+    var room = pairingRoomSocket.addPlayer(socket.id);
+    socket.join(`gameRoom${room.getRoomId()}`);
+    if(room.isFull()) {
+      console.log(room);
+      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('prompt', ``);
+      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('room id', `${room.getRoomId()}`);
+    }
 
-    // play game 
-    pairingRoomSocket.startSession(socket);
-
-    // join game room lobby
-    // pairingRoomSocket.joinGame(socket);
-
-    // // leave game room
-    // pairingRoomSocket.leaveGame(socket);
-    // pairingRoomSocket.disconnect(socket);
-
-    // // end game
-    // pairingRoomSocket.gameEnd(socket);
+    socket.on('edit', (code, roomId)=>{
+      //TODO
+      //emit the updated code
+      //brodcast the updated code to the other person with
+      //
+    })
 
   });
 }
+
+
+
+
+
+
+
+
+
+
+
 
 

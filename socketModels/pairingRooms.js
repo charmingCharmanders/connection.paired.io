@@ -2,6 +2,14 @@
 class PairingRoom {
   constructor(id){
     this.players = [];
+    this.prompt = {
+      name: 'problem1',
+      description: 'here is the problem',
+      category: 'recursion',
+      hints: 'hint 1 hint 2',
+      skeletonCode: 'code',
+      solutionCode: 'code'
+    };
     this.roomId = id;
   }
 
@@ -10,6 +18,12 @@ class PairingRoom {
       playerId: playerId,
       playerRating: playerRating
     });
+  }
+
+  retrievePrompt() {
+    //TODO David will implment?? :)
+    //retrieve a random prompt from the database
+    //needs to be an async function
   }
 
   removePlayer(playerId) {
@@ -29,6 +43,9 @@ class PairingRoom {
 
   getRoomId(){
     return this.roomId;
+  }
+  getPrompt(){
+    return this.prompt;
   }
 
 }
