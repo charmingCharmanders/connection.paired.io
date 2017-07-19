@@ -49,8 +49,7 @@ module.exports.init = (io) => {
     var room = pairingRoomSocket.addPlayer(socket.id);
     socket.join(`gameRoom${room.getRoomId()}`);
     if(room.isFull()) {
-      console.log(room);
-      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('prompt', ``);
+      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('prompt', `${JSON.stringify(room.getPrompt())}`);
       io.sockets.in(`gameRoom${room.getRoomId()}`).emit('room id', `${room.getRoomId()}`);
     }
 
