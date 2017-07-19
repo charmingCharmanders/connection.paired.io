@@ -9,7 +9,11 @@ const io = require('socket.io')(http);
 var PairingRoom = require('./socketModels/pairingRooms.js');
 var PairingRoomSocket = require('./middleware/pairingRoomSocket.js');
 
-const PORT = process.env.port || 3001;
+app.get('/', (req, res) => {
+  res.end('connection.peared.io');
+})
+
+const PORT = process.env.PORT || 3001;
 
 http.listen(PORT, () => {
   console.log('Example app listening on port 3001!');
