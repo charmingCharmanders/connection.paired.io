@@ -6,6 +6,7 @@ class PairingRoomSocket {
   constructor(io) {
     this.io = io;
     this.roomCount = 0;
+    this.rooms = {};
     this.queuedRooms = [];
   }
 
@@ -29,6 +30,7 @@ class PairingRoomSocket {
     var room = new PairingRoom(++this.roomCount);
     room.addPlayer(playerId, 2);
     this.queuedRooms.push(room);
+    this.rooms[room.getRoomId()] = room;
     return room;
   }
 
@@ -55,6 +57,10 @@ module.exports.init = (io) => {
 
     socket.on('edit', (code, roomId)=>{
       //TODO
+      var room = pairingRoomSocket.rooms[roomId];
+      console.log('The code is: ', code);
+      room.updateCode(code);
+      socket.broadcast.to(`gameRoom${roomId}`).emit('edit', code);
       //emit the updated code
       //brodcast the updated code to the other person with
       //

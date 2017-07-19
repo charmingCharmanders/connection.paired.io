@@ -15,6 +15,10 @@ class PairingRoom {
     this.roomId = id;
   }
 
+  updateCode(code) {
+    this.code = code;
+  }
+
   addPlayer(playerId, playerRating) {
     this.players.push({
       playerId: playerId,
