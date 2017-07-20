@@ -49,6 +49,7 @@ module.exports.init = (io) => {
   io.on('connection', (socket) => {
     console.log(socket.id, ' user connected!');
     var room = pairingRoomSocket.addPlayer(socket.id);
+    room.retrievePrompt();
     socket.join(`gameRoom${room.getRoomId()}`);
     if(room.isFull()) {
       io.sockets.in(`gameRoom${room.getRoomId()}`).emit('prompt', `${JSON.stringify(room.getPrompt())}`);
