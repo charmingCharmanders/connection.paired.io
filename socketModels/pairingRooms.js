@@ -1,22 +1,11 @@
+const models = require('../db/models/');
 
 class PairingRoom {
-  constructor(id){
+  constructor(id) {
     this.players = [];
-    this.prompt = {
-      name: 'Add Two Numbers',
-      description: 'Description. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum bibendum velit id ullamcorper lobortis. Fusce egestas ac diam sed finibus.',
-      category: 'Maths',
-      hint: 'Hint. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum bibendum velit id ullamcorper lobortis. Fusce egestas ac diam sed finibus.',
-      skeletonCode: 'const addTwoNumbers = function (a, b) { }',
-      solutionCode: 'const addTwoNumbers = function (a, b) { return a + b; }',
-      rating: null
-    };
-    this.code = this.prompt.skeletonCode;
+    this.prompt = null;
+    this.code = null;
     this.roomId = id;
-  }
-
-  updateCode(code) {
-    this.code = code;
   }
 
   addPlayer(playerId, playerRating) {
@@ -24,12 +13,6 @@ class PairingRoom {
       playerId: playerId,
       playerRating: playerRating
     });
-  }
-
-  retrievePrompt() {
-    //TODO David will implment?? :)
-    //retrieve a random prompt from the database
-    //needs to be an async function
   }
 
   removePlayer(playerId) {
@@ -47,14 +30,35 @@ class PairingRoom {
     return this.players.length === 2;
   }
 
-  getRoomId(){
+  getRoomId() {
     return this.roomId;
   }
 
-  getPrompt(){
+  retrievePrompt() {
+    return models.Prompt
+      .count()
+      .then(count => {
+        const promptId = Math.floor(Math.random() * count);
+        return models.Prompt
+          .where({ id: promptId })
+          .fetch();
+      })
+      .then(prompt => {
+        this.prompt = prompt.attributes;
+        this.code = prompt.attributes.skeletonCode;
+      })
+      .catch(err => {
+        console.error(err);
+      });
+  }
+
+  getPrompt() {
     return this.prompt;
   }
 
+  updateCode(code) {
+    this.code = code;
+  }
 }
 
 module.exports = PairingRoom;
