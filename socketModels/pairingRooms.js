@@ -44,8 +44,8 @@ class PairingRoom {
           .fetch();
       })
       .then(prompt => {
-        this.prompt = prompt;
-        this.code = prompt.skeletonCode;
+        this.prompt = prompt.attributes;
+        this.code = prompt.attributes.skeletonCode;
       })
       .catch(err => {
         console.error(err);

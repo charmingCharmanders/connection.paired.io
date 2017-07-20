@@ -1,4 +1,5 @@
-var PairingRoom = require('../socketModels/pairingRooms.js');
+const PairingRoom = require('../socketModels/pairingRooms.js');
+const models = require('../db/models');
 
 class PairingRoomSocket {
   constructor(io) {
@@ -39,6 +40,14 @@ class PairingRoomSocket {
   }
 }
 
+const assert = (expectedBehavior, descriptionOfCorrectBehavior) => {
+  if (expectedBehavior) {
+    return 'test passed';
+  } else {
+    return descriptionOfCorrectBehavior;
+  }
+};
+
 module.exports.init = (io) => {
   const pairingRoomSocket = new PairingRoomSocket(io);
 
@@ -53,8 +62,8 @@ module.exports.init = (io) => {
     socket.join(`gameRoom${room.getRoomId()}`);
 
     if (room.isFull()) {
-      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('prompt', `${JSON.stringify(room.getPrompt())}`);
-      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('room id', `${room.getRoomId()}`);
+      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('prompt', room.getPrompt());
+      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('room id', room.getRoomId());
     }
 
     socket.on('edit', (code, roomId) => {
@@ -63,6 +72,35 @@ module.exports.init = (io) => {
       room.updateCode(code);
       socket.broadcast.to(`gameRoom${roomId}`).emit('edit', code);
       // emit the updated code
+    });
+
+    socket.on('test', (promptId, code, roomId) => {
+      models.Test
+        .where({ promptId: promptId })
+        .fetchAll()
+        .then(tests => {
+          const results = [];
+          const functionBody = code.slice(code.indexOf('{') + 1, code.lastIndexOf('}'));
+          const functionArgs = code.match(/function[^(]*\(([^)]*)\)/);
+          const functionCode = new Function(functionArgs[1], functionBody);
+
+          tests.models.forEach(test => {
+            const functionArgs = JSON.parse(`[${test.attributes.arguments}]`);
+            const functionOutput = functionCode.apply(null, functionArgs);
+            const expectedOutput = JSON.parse(`${test.attributes.expectedOutput}`);
+
+            results.push({
+              description: test.attributes.description,
+              result: assert(functionOutput === expectedOutput, `expected ${functionOutput} to equal ${expectedOutput}`)
+            });
+          });
+
+          // Emit event to everyone in room
+          io.sockets.in(`gameRoom${room.getRoomId()}`).emit('testResults', results);
+        })
+        .catch(err => {
+          console.error(err);
+        });
     });
   });
 };
