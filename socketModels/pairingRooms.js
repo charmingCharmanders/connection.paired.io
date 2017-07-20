@@ -1,15 +1,11 @@
 const models = require('../db/models/');
 
 class PairingRoom {
-  constructor(id){
+  constructor(id) {
     this.players = [];
     this.prompt = null;
     this.code = null;
     this.roomId = id;
-  }
-
-  updateCode(code) {
-    this.code = code;
   }
 
   addPlayer(playerId, playerRating) {
@@ -17,6 +13,25 @@ class PairingRoom {
       playerId: playerId,
       playerRating: playerRating
     });
+  }
+
+  removePlayer(playerId) {
+    var index = this.players.findIndex(player => player.playerId === playerId);
+    if (index >= 0) {
+      this.players.splice(index, 1);
+    }
+  }
+
+  playersInRoom() {
+    return this.players.length;
+  }
+
+  isFull() {
+    return this.players.length === 2;
+  }
+
+  getRoomId() {
+    return this.roomId;
   }
 
   retrievePrompt() {
@@ -37,29 +52,13 @@ class PairingRoom {
       });
   }
 
-  removePlayer(playerId) {
-    var index = this.players.findIndex(player => player.playerId === playerId);
-    if (index >= 0) {
-      this.players.splice(index, 1);
-    }
-  }
-
-  playersInRoom() {
-    return this.players.length;
-  }
-
-  isFull() {
-    return this.players.length === 2;
-  }
-
-  getRoomId(){
-    return this.roomId;
-  }
-
-  getPrompt(){
+  getPrompt() {
     return this.prompt;
   }
 
+  updateCode(code) {
+    this.code = code;
+  }
 }
 
 module.exports = PairingRoom;

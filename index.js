@@ -11,7 +11,7 @@ var PairingRoomSocket = require('./middleware/pairingRoomSocket.js');
 
 app.get('/', (req, res) => {
   res.end('connection.peared.io');
-})
+});
 
 const PORT = process.env.PORT || 3001;
 
