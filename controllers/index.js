@@ -1,1 +1,1 @@
-module.exports.Tests = require('./tests');
+module.exports.Test = require('./tests');

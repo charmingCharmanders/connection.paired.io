@@ -6,22 +6,21 @@ module.exports.getAll = () => {
       return tests;
     })
     .catch(err => {
-      // This code indicates an outside service (the database) did not respond in time
       return err;
     });
 };
 
-
-module.exports.getAllByPromptId = (prompt_id) => {
-  // console.log(req.params.prompt_id);
-  models.Test.where({ promptId: prompt_id }).fetchAll()
-    .then(test => {
-      if (!test) {
-        throw test;
+module.exports.getAllByPromptId = (promptId) => {
+  models.Test
+    .where({ promptId: promptId })
+    .fetchAll()
+    .then(tests => {
+      if (!tests) {
+        throw tests;
       }
-      return test;
+      return tests;
     })
     .error(err => {
       return err;
-    })
+    });
 };
