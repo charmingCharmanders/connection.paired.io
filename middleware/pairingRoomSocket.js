@@ -30,9 +30,9 @@ class PairingRoomSocket {
     this.rooms[room.getRoomId()] = room;
     return room;
   }
-  
+
   removeRoom(roomId) {
-    if(this.rooms[roomId]) {
+    if (this.rooms[roomId]) {
       this.rooms[roomId] = undefined;
     }
   }
@@ -69,7 +69,7 @@ module.exports.init = (io) => {
 
     socket.on('disconnect', function() {
       room.removePlayer(socket.id);
-      if(room.isEmpty()){
+      if (room.isEmpty()) {
         pairingRoomSocket.removeRoom(room.getRoomId());
       }
     });
