@@ -30,6 +30,13 @@ class PairingRoomSocket {
     this.rooms[room.getRoomId()] = room;
     return room;
   }
+  
+  removeRoom(roomId) {
+    if(this.rooms[roomId]) {
+      this.rooms[roomId] = undefined;
+    }
+  }
+
 
   addPlayer(playerId) {
     if (this.isRoomAvailable()) {
@@ -38,6 +45,7 @@ class PairingRoomSocket {
       return this.addNewRoom(playerId);
     }
   }
+
 }
 
 const assert = (expectedBehavior, descriptionOfCorrectBehavior) => {
@@ -59,19 +67,25 @@ module.exports.init = (io) => {
     const room = pairingRoomSocket.addPlayer(socket.id);
     room.retrievePrompt();
 
+    socket.on('disconnect', function() {
+      room.removePlayer(socket.id);
+      if(room.isEmpty()){
+        pairingRoomSocket.removeRoom(room.getRoomId());
+      }
+    });
+
     socket.join(`gameRoom${room.getRoomId()}`);
 
     if (room.isFull()) {
+      console.log('creating a room:', room);
       io.sockets.in(`gameRoom${room.getRoomId()}`).emit('prompt', room.getPrompt());
       io.sockets.in(`gameRoom${room.getRoomId()}`).emit('room id', room.getRoomId());
     }
 
     socket.on('edit', (code, roomId) => {
       const room = pairingRoomSocket.rooms[roomId];
-      console.log('The code is: ', code);
       room.updateCode(code);
       socket.broadcast.to(`gameRoom${roomId}`).emit('edit', code);
-      // emit the updated code
     });
 
     socket.on('test', (promptId, code, roomId) => {

@@ -26,6 +26,10 @@ class PairingRoom {
     return this.players.length;
   }
 
+  isEmpty() {
+    return this.players.length === 0;
+  }
+
   isFull() {
     return this.players.length === 2;
   }
