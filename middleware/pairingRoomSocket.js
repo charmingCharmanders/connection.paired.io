@@ -67,6 +67,7 @@ module.exports.init = (io) => {
     const room = pairingRoomSocket.addPlayer(socket.id);
 
     socket.on('disconnect', function() {
+      console.log(socket.id, ' user disconnected!');
       room.removePlayer(socket.id);
       if (room.isEmpty()) {
         pairingRoomSocket.removeRoom(room.getRoomId());
