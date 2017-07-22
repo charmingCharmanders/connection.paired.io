@@ -65,7 +65,6 @@ module.exports.init = (io) => {
     console.log(socket.id, ' user connected!');
 
     const room = pairingRoomSocket.addPlayer(socket.id);
-    room.retrievePrompt();
 
     socket.on('disconnect', function() {
       room.removePlayer(socket.id);
@@ -78,8 +77,11 @@ module.exports.init = (io) => {
 
     if (room.isFull()) {
       console.log('creating a room:', room);
-      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('prompt', room.getPrompt());
-      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('room id', room.getRoomId());
+      room.retrievePrompt()
+        .then(() => {
+          io.sockets.in(`gameRoom${room.getRoomId()}`).emit('prompt', room.getPrompt());
+          io.sockets.in(`gameRoom${room.getRoomId()}`).emit('room id', room.getRoomId());
+        });
     }
 
     socket.on('edit', (code, roomId) => {
