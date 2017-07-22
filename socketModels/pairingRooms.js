@@ -39,21 +39,25 @@ class PairingRoom {
   }
 
   retrievePrompt() {
-    return models.Prompt
-      .count()
-      .then(count => {
-        const promptId = Math.floor(Math.random() * count);
-        return models.Prompt
-          .where({ id: promptId })
-          .fetch();
-      })
-      .then(prompt => {
-        this.prompt = prompt.attributes;
-        this.code = prompt.attributes.skeletonCode;
-      })
-      .catch(err => {
-        console.error(err);
-      });
+    return new Promise((resolve, reject) => {
+      models.Prompt
+        .count()
+        .then(count => {
+          const promptId = Math.floor(Math.random() * count);
+          return models.Prompt
+            .where({ id: promptId })
+            .fetch();
+        })
+        .then(prompt => {
+          this.prompt = prompt.attributes;
+          this.code = prompt.attributes.skeletonCode;
+          resolve();
+        })
+        .catch(err => {
+          console.error(err);
+          reject(err);
+        });
+    });
   }
 
   getPrompt() {
