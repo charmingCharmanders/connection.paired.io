@@ -17,15 +17,15 @@ class PairingRoomSocket {
     }
   }
 
-  fillAvailable(playerId) {
+  fillAvailable(playerId, profileRating, profileId) {
     var room = this.queuedRooms.pop();
-    room.addPlayer(playerId, 2);
+    room.addPlayer(playerId, profileRating, profileId);
     return room;
   }
 
-  addNewRoom(playerId) {
+  addNewRoom(playerId, profileRating, profileId) {
     var room = new PairingRoom(++this.roomCount);
-    room.addPlayer(playerId, 2);
+    room.addPlayer(playerId, profileRating, profileId);
     this.queuedRooms.push(room);
     this.rooms[room.getRoomId()] = room;
     return room;
@@ -38,11 +38,11 @@ class PairingRoomSocket {
   }
 
 
-  addPlayer(playerId) {
+  addPlayer(playerId, playerRating, profileId) {
     if (this.isRoomAvailable()) {
-      return this.fillAvailable(playerId);
+      return this.fillAvailable(playerId, playerRating, profileId);
     } else {
-      return this.addNewRoom(playerId);
+      return this.addNewRoom(playerId, playerRating, profileId);
     }
   }
 
@@ -62,9 +62,9 @@ module.exports.init = (io) => {
   console.log('running init, so waiting for a connection');
   
   io.on('connection', (socket) => {
-    console.log(socket.id, ' user connected!');
+    console.log(socket.id, socket.handshake.query, 'user connected!');
 
-    const room = pairingRoomSocket.addPlayer(socket.id);
+    const room = pairingRoomSocket.addPlayer(socket.id, null, socket.handshake.query.profileId);
 
     socket.on('disconnect', function() {
       room.removePlayer(socket.id);
@@ -79,8 +79,13 @@ module.exports.init = (io) => {
       console.log('creating a room:', room);
       room.retrievePrompt()
         .then(() => {
-          io.sockets.in(`gameRoom${room.getRoomId()}`).emit('prompt', room.getPrompt());
-          io.sockets.in(`gameRoom${room.getRoomId()}`).emit('room id', room.getRoomId());
+          const sessionData = {
+            profileId1: room.getPlayers()[0].profileId,
+            profileId2: room.getPlayers()[1].profileId,
+            prompt: room.getPrompt(),
+            roomId: room.getRoomId()
+          };
+          io.sockets.in(`gameRoom${room.getRoomId()}`).emit('startSession', sessionData);
         });
     }
 

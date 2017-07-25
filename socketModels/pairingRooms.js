@@ -8,10 +8,11 @@ class PairingRoom {
     this.roomId = id;
   }
 
-  addPlayer(playerId, playerRating) {
+  addPlayer(playerId, profileRating, profileId) {
     this.players.push({
       playerId: playerId,
-      playerRating: playerRating
+      profileRating: profileRating,
+      profileId: profileId
     });
   }
 
@@ -24,6 +25,10 @@ class PairingRoom {
 
   playersInRoom() {
     return this.players.length;
+  }
+
+  getPlayers() {
+    return this.players;
   }
 
   isEmpty() {
