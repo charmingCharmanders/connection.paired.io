@@ -97,23 +97,50 @@ module.exports.init = (io) => {
         .fetchAll()
         .then(tests => {
           const results = [];
-          const functionBody = code.slice(code.indexOf('{') + 1, code.lastIndexOf('}'));
-          const functionArgs = code.match(/function[^(]*\(([^)]*)\)/);
-          const functionCode = new Function(functionArgs[1], functionBody);
+          try {
+            // If function contains error it will be thrown
+            eval(code);
+            // Otherwise run the below code
+            const functionBody = code.slice(code.indexOf('{') + 1, code.lastIndexOf('}'));
+            const functionArgs = code.match(/function[^(]*\(([^)]*)\)/);
+            const functionCode = new Function(functionArgs[1], functionBody);
 
-          tests.models.forEach(test => {
-            const functionArgs = JSON.parse(`[${test.attributes.arguments}]`);
-            const functionOutput = functionCode.apply(null, functionArgs);
-            const expectedOutput = JSON.parse(`${test.attributes.expectedOutput}`);
+            tests.models.forEach(test => {
+              const functionParams = JSON.parse(`[${test.attributes.arguments}]`);
+              const functionOutput = functionCode.apply(null, functionParams);
+              const expectedOutput = JSON.parse(`${test.attributes.expectedOutput}`);
 
-            results.push({
-              description: test.attributes.description,
-              result: assert(functionOutput === expectedOutput, `expected ${functionOutput} to equal ${expectedOutput}`)
+              results.push({
+                description: test.attributes.description,
+                result: assert(functionOutput === expectedOutput, `expected ${functionOutput} to equal ${expectedOutput}`)
+              });
             });
-          });
-
-          // Emit event to everyone in room
-          io.sockets.in(`gameRoom${room.getRoomId()}`).emit('testResults', results);
+          } catch (e) {
+            if (e instanceof RangeError) {
+              results.push({
+                message: `Range Error: ${e.message}`
+              });
+            } else if (e instanceof ReferenceError) {
+              results.push({
+                message: `Reference Error: ${e.message}`
+              });
+            } else if (e instanceof SyntaxError) {
+              results.push({
+                message: `Syntax Error: ${e.message}`
+              });
+            } else if (e instanceof TypeError) {
+              results.push({
+                message: `Type Error: ${e.message}`
+              });
+            } else {
+              results.push({
+                message: 'Error: An unexpected error occured'
+              });
+            }
+          } finally {
+            // Emit results to everyone in room
+            io.sockets.in(`gameRoom${room.getRoomId()}`).emit('testResults', results);
+          }
         })
         .catch(err => {
           console.error(err);
