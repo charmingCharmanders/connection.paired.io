@@ -17,15 +17,15 @@ class PairingRoomSocket {
     }
   }
 
-  fillAvailable(playerId) {
+  fillAvailable(playerId, profileRating, profileId) {
     var room = this.queuedRooms.pop();
-    room.addPlayer(playerId, 2);
+    room.addPlayer(playerId, profileRating, profileId);
     return room;
   }
 
-  addNewRoom(playerId) {
+  addNewRoom(playerId, profileRating, profileId) {
     var room = new PairingRoom(++this.roomCount);
-    room.addPlayer(playerId, 2);
+    room.addPlayer(playerId, profileRating, profileId);
     this.queuedRooms.push(room);
     this.rooms[room.getRoomId()] = room;
     return room;
@@ -38,11 +38,11 @@ class PairingRoomSocket {
   }
 
 
-  addPlayer(playerId) {
+  addPlayer(playerId, playerRating, profileId) {
     if (this.isRoomAvailable()) {
-      return this.fillAvailable(playerId);
+      return this.fillAvailable(playerId, playerRating, profileId);
     } else {
-      return this.addNewRoom(playerId);
+      return this.addNewRoom(playerId, playerRating, profileId);
     }
   }
 
@@ -62,9 +62,9 @@ module.exports.init = (io) => {
   console.log('running init, so waiting for a connection');
   
   io.on('connection', (socket) => {
-    console.log(socket.id, ' user connected!');
+    console.log(socket.id, socket.handshake.query, 'user connected!');
 
-    const room = pairingRoomSocket.addPlayer(socket.id);
+    const room = pairingRoomSocket.addPlayer(socket.id, null, socket.handshake.query.profileId);
 
     socket.on('disconnect', function() {
       room.removePlayer(socket.id);
@@ -79,8 +79,13 @@ module.exports.init = (io) => {
       console.log('creating a room:', room);
       room.retrievePrompt()
         .then(() => {
-          io.sockets.in(`gameRoom${room.getRoomId()}`).emit('prompt', room.getPrompt());
-          io.sockets.in(`gameRoom${room.getRoomId()}`).emit('room id', room.getRoomId());
+          const sessionData = {
+            profileId1: room.getPlayers()[0].profileId,
+            profileId2: room.getPlayers()[1].profileId,
+            prompt: room.getPrompt(),
+            roomId: room.getRoomId()
+          };
+          io.sockets.in(`gameRoom${room.getRoomId()}`).emit('startSession', sessionData);
         });
     }
 
@@ -95,7 +100,12 @@ module.exports.init = (io) => {
         .where({ promptId: promptId })
         .fetchAll()
         .then(tests => {
-          const results = [];
+          const results = {
+            error: null,
+            testsCount: 0,
+            testsPassed: 0,
+            tests: []
+          };
           try {
             // If function contains error it will be thrown
             eval(code);
@@ -109,32 +119,28 @@ module.exports.init = (io) => {
               const functionOutput = functionCode.apply(null, functionParams);
               const expectedOutput = JSON.parse(`${test.attributes.expectedOutput}`);
 
-              results.push({
+              results.testsCount = results.testsCount + 1;
+
+              if (functionOutput === expectedOutput) {
+                results.testsPassed = results.testsPassed + 1;
+              }
+
+              results.tests.push({
                 description: test.attributes.description,
                 result: assert(functionOutput === expectedOutput, `expected ${functionOutput} to equal ${expectedOutput}`)
               });
             });
           } catch (e) {
             if (e instanceof RangeError) {
-              results.push({
-                message: `Range Error: ${e.message}`
-              });
+              results.error = `Range Error: ${e.message}`;
             } else if (e instanceof ReferenceError) {
-              results.push({
-                message: `Reference Error: ${e.message}`
-              });
+              results.error = `Reference Error: ${e.message}`;
             } else if (e instanceof SyntaxError) {
-              results.push({
-                message: `Syntax Error: ${e.message}`
-              });
+              results.error = `Syntax Error: ${e.message}`;
             } else if (e instanceof TypeError) {
-              results.push({
-                message: `Type Error: ${e.message}`
-              });
+              results.error = `Type Error: ${e.message}`;
             } else {
-              results.push({
-                message: 'Error: An unexpected error occured'
-              });
+              results.error = 'Error: An unexpected error occured';
             }
           } finally {
             // Emit results to everyone in room
