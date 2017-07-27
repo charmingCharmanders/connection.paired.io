@@ -7,6 +7,7 @@ class PairingRoomSocket {
     this.roomCount = 0;
     this.rooms = {};
     this.queuedRooms = [];
+    this.userCount = 0;
   }
 
   isRoomAvailable() {
@@ -64,6 +65,9 @@ module.exports.init = (io) => {
   io.on('connection', (socket) => {
     console.log(socket.id, socket.handshake.query, 'user connected!');
     var room;
+    pairingRoomSocket.userCount++;
+    io.sockets.emit('users online', pairingRoomSocket.userCount);
+
     socket.on('join room', function() {
       room = pairingRoomSocket.addPlayer(socket.id, null, socket.handshake.query.profileId);
       socket.join(`gameRoom${room.getRoomId()}`);
@@ -95,6 +99,11 @@ module.exports.init = (io) => {
     });
 
     socket.on('disconnect', function() {
+      //update the users in a room and emit:
+      pairingRoomSocket.userCount--;
+      io.sockets.emit('users online', pairingRoomSocket.userCount);
+
+
       console.log(socket.id, ' user disconnected!');
       if(room){
         console.log(socket.id, ' user leave the room ',room.getRoomId());
