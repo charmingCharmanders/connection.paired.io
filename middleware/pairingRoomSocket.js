@@ -63,31 +63,48 @@ module.exports.init = (io) => {
   
   io.on('connection', (socket) => {
     console.log(socket.id, socket.handshake.query, 'user connected!');
-
-    const room = pairingRoomSocket.addPlayer(socket.id, null, socket.handshake.query.profileId);
-
-    socket.on('disconnect', function() {
-      room.removePlayer(socket.id);
-      if (room.isEmpty()) {
-        pairingRoomSocket.removeRoom(room.getRoomId());
+    var room;
+    socket.on('join room', function() {
+      room = pairingRoomSocket.addPlayer(socket.id, null, socket.handshake.query.profileId);
+      socket.join(`gameRoom${room.getRoomId()}`);
+      if (room.isFull()) {
+        console.log('creating a room:', room);
+        room.retrievePrompt()
+          .then(() => {
+            const sessionData = {
+              profileId1: room.getPlayers()[0].profileId,
+              profileId2: room.getPlayers()[1].profileId,
+              prompt: room.getPrompt(),
+              roomId: room.getRoomId()
+            };
+            io.sockets.in(`gameRoom${room.getRoomId()}`)
+              .emit('startSession', sessionData);
+          });
       }
     });
 
-    socket.join(`gameRoom${room.getRoomId()}`);
+    socket.on('leave room', function() {
+      if(room) {
+        console.log(socket.id, ' user is leaving room ',room.getRoomId());
+        room.removePlayer(socket.id);
+        socket.leave(`gameRoom${room.getRoomId()}`);
+        if (room.isEmpty()) {
+          pairingRoomSocket.removeRoom(room.getRoomId());
+        }
+      }
+    });
 
-    if (room.isFull()) {
-      console.log('creating a room:', room);
-      room.retrievePrompt()
-        .then(() => {
-          const sessionData = {
-            profileId1: room.getPlayers()[0].profileId,
-            profileId2: room.getPlayers()[1].profileId,
-            prompt: room.getPrompt(),
-            roomId: room.getRoomId()
-          };
-          io.sockets.in(`gameRoom${room.getRoomId()}`).emit('startSession', sessionData);
-        });
-    }
+    socket.on('disconnect', function() {
+      console.log(socket.id, ' user disconnected!');
+      if(room){
+        console.log(socket.id, ' user leave the room ',room.getRoomId());
+        room.removePlayer(socket.id);
+        socket.leave(`gameRoom${room.getRoomId()}`);
+        if (room.isEmpty()) {
+          pairingRoomSocket.removeRoom(room.getRoomId());
+        }
+      }
+    });
 
     socket.on('edit', (code, roomId) => {
       const room = pairingRoomSocket.rooms[roomId];
