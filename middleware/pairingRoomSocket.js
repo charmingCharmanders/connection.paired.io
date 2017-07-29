@@ -79,7 +79,10 @@ module.exports.init = (io) => {
               profileId1: room.getPlayers()[0].profileId,
               profileId2: room.getPlayers()[1].profileId,
               prompt: room.getPrompt(),
-              roomId: room.getRoomId()
+              roomId: room.getRoomId(),
+              code: null,
+              startedAt: new Date(),
+              testResults: {}
             };
             io.sockets.in(`gameRoom${room.getRoomId()}`)
               .emit('startSession', sessionData);
@@ -98,6 +101,18 @@ module.exports.init = (io) => {
       }
     });
 
+    socket.on('submit code', () => {
+      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('submit code');
+      if(room) {
+        console.log(socket.id, ' user is leaving room ',room.getRoomId());
+        room.removePlayer(socket.id);
+        socket.leave(`gameRoom${room.getRoomId()}`);
+        if (room.isEmpty()) {
+          pairingRoomSocket.removeRoom(room.getRoomId());
+        }
+      }
+    });
+
     socket.on('disconnect', function() {
       //update the users in a room and emit:
       pairingRoomSocket.userCount--;
@@ -105,8 +120,8 @@ module.exports.init = (io) => {
 
 
       console.log(socket.id, ' user disconnected!');
-      if(room){
-        console.log(socket.id, ' user leave the room ',room.getRoomId());
+      if(room) {
+        console.log(socket.id, ' user is leaving room ',room.getRoomId());
         room.removePlayer(socket.id);
         socket.leave(`gameRoom${room.getRoomId()}`);
         if (room.isEmpty()) {
