@@ -1,10 +1,12 @@
 const models = require('../db/models/');
 
+
 class PairingRoom {
-  constructor(id) {
+  constructor(id, difficulty) {
     this.players = [];
     this.prompt = null;
     this.code = null;
+    this.difficulty = difficulty;
     this.roomId = id;
   }
 
@@ -46,16 +48,13 @@ class PairingRoom {
   retrievePrompt() {
     return new Promise((resolve, reject) => {
       models.Prompt
-        .count()
-        .then(count => {
-          const promptId = Math.floor(Math.random() * count);
-          return models.Prompt
-            .where({ id: promptId })
-            .fetch();
-        })
-        .then(prompt => {
-          this.prompt = prompt.attributes;
-          this.code = prompt.attributes.skeletonCode;
+        .where({ difficulty: this.difficulty})
+        .fetchAll()
+        .then(prompts => {
+          // console.log('the possible prompots are:', prompts.models);
+          const random = Math.floor(Math.random() * prompts.length);
+          this.prompt = prompts.models[random].attributes;
+          this.code = prompts.models[random].attributes.skeletonCode;
           resolve();
         })
         .catch(err => {
@@ -63,6 +62,9 @@ class PairingRoom {
           reject(err);
         });
     });
+  }
+  getDifficulty() {
+    return this.difficulty;
   }
 
   getPrompt() {
