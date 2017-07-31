@@ -1,5 +1,4 @@
 const translateRatingToDifficulty = function (rating) {
-  console.log('playerRating:', rating);
   if(rating < 100) {
     return 1;
   } else if(rating < 5000) {

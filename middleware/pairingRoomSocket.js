@@ -5,6 +5,7 @@ const models = require('../db/models');
 
 class PairingRoomSocket {
   constructor(io) {
+    this.usersOnline={};
     this.io = io;
     this.roomCount = 0;
     this.rooms = {};
@@ -69,10 +70,13 @@ module.exports.init = (io) => {
     console.log(socket.id, socket.handshake.query, 'user connected!');
     var room;
     pairingRoomSocket.userCount++;
+    pairingRoomSocket.usersOnline[socket.handshake.query.profileId]=false;
+    console.log('users online: ', pairingRoomSocket.usersOnline);
+    
     io.sockets.emit('users online', pairingRoomSocket.userCount);
-
     socket.on('join room', function() {
-      room = pairingRoomSocket.addPlayer(socket.id, socket.handshake.query.profileRating, socket.handshake.query.profileId);
+      room = pairingRoomSocket.addPlayer(socket.id, socket.handshake.query.rating, socket.handshake.query.profileId);
+      pairingRoomSocket.usersOnline[socket.handshake.query.profileId] = true;
       console.log(socket.handshake.query.profileId, ' has been added to: ', room);
       socket.join(`gameRoom${room.getRoomId()}`);
       if (room.isFull()) {
@@ -100,6 +104,7 @@ module.exports.init = (io) => {
     socket.on('leave room', function() {
       if(room) {
         console.log(socket.id, ' user is leaving room ',room.getRoomId());
+        pairingRoomSocket.usersOnline[socket.handshake.query.profileId] = false;
         room.removePlayer(socket.id);
         socket.leave(`gameRoom${room.getRoomId()}`);
         if (room.isEmpty()) {
@@ -123,6 +128,8 @@ module.exports.init = (io) => {
     socket.on('disconnect', function() {
       //update the users in a room and emit:
       pairingRoomSocket.userCount--;
+      delete pairingRoomSocket.usersOnline[socket.handshake.query.profileId];
+
       io.sockets.emit('users online', pairingRoomSocket.userCount);
 
 
