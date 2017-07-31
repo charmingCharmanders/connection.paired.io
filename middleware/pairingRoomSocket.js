@@ -1,5 +1,7 @@
 const PairingRoom = require('../socketModels/pairingRooms.js');
+const helpers = require('./helpers');
 const models = require('../db/models');
+// const helper = require('../socketModels/h')
 
 class PairingRoomSocket {
   constructor(io) {
@@ -10,12 +12,13 @@ class PairingRoomSocket {
     this.userCount = 0;
   }
 
-  isRoomAvailable() {
-    if (this.queuedRooms.length > 0) {
-      return true;
-    } else {
-      return false;  
+  isRoomAvailable(difficulty) {
+    for(var i = 0; i < this.queuedRooms.length; i++) {
+      if(this.queuedRooms[i].getDifficulty() === difficulty){
+        return true;
+      }
     }
+    return false;
   }
 
   fillAvailable(playerId, profileRating, profileId) {
@@ -24,9 +27,9 @@ class PairingRoomSocket {
     return room;
   }
 
-  addNewRoom(playerId, profileRating, profileId) {
-    var room = new PairingRoom(++this.roomCount);
-    room.addPlayer(playerId, profileRating, profileId);
+  addNewRoom(playerId, playerRating, profileId) {
+    var room = new PairingRoom(++this.roomCount, helpers.translateRatingToDifficulty(playerRating));
+    room.addPlayer(playerId, playerRating, profileId);
     this.queuedRooms.push(room);
     this.rooms[room.getRoomId()] = room;
     return room;
@@ -40,7 +43,7 @@ class PairingRoomSocket {
 
 
   addPlayer(playerId, playerRating, profileId) {
-    if (this.isRoomAvailable()) {
+    if (this.isRoomAvailable(helpers.translateRatingToDifficulty(playerRating))) {
       return this.fillAvailable(playerId, playerRating, profileId);
     } else {
       return this.addNewRoom(playerId, playerRating, profileId);
@@ -69,12 +72,13 @@ module.exports.init = (io) => {
     io.sockets.emit('users online', pairingRoomSocket.userCount);
 
     socket.on('join room', function() {
-      room = pairingRoomSocket.addPlayer(socket.id, null, socket.handshake.query.profileId);
+      room = pairingRoomSocket.addPlayer(socket.id, socket.handshake.query.profileRating, socket.handshake.query.profileId);
+      console.log(socket.handshake.query.profileId, ' has been added to: ', room);
       socket.join(`gameRoom${room.getRoomId()}`);
       if (room.isFull()) {
-        console.log('creating a room:', room);
         room.retrievePrompt()
           .then(() => {
+            console.log('the room with the prompt is:', room);
             const sessionData = {
               profileId1: room.getPlayers()[0].profileId,
               profileId2: room.getPlayers()[1].profileId,
@@ -86,6 +90,9 @@ module.exports.init = (io) => {
             };
             io.sockets.in(`gameRoom${room.getRoomId()}`)
               .emit('startSession', sessionData);
+          })
+          .catch(err => {
+            console.log('there was an error:', err);
           });
       }
     });
