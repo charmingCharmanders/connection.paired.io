@@ -28,6 +28,12 @@ class PairingRoomSocket {
     return room;
   }
 
+  fillPrivate(playerId, profileRating, profileId, roomId) {
+    var room = this.rooms[roomId];
+    room.addPlayer(playerId, profileRating, profileId);
+    return room;
+  }
+
   addNewRoom(playerId, playerRating, profileId) {
     var room = new PairingRoom(++this.roomCount, helpers.translateRatingToDifficulty(playerRating));
     room.addPlayer(playerId, playerRating, profileId);
@@ -127,6 +133,29 @@ const calculateSessionScore = (timeLimitInSeconds, promptTime, promptDifficulty,
   }
 };
 
+const populateWithPrompt = function(room, io){
+  if (room.isFull()) {
+    room.retrievePrompt()
+      .then(() => {
+        console.log('the room with the prompt is:', room);
+        const sessionData = {
+          profileId1: room.getPlayers()[0].profileId,
+          profileId2: room.getPlayers()[1].profileId,
+          prompt: room.getPrompt(),
+          roomId: room.getRoomId(),
+          code: null,
+          startedAt: new Date(),
+          testResults: {}
+        };
+        io.sockets.in(`gameRoom${room.getRoomId()}`)
+          .emit('startSession', sessionData);
+      })
+      .catch(err => {
+        console.log('there was an error:', err);
+      });
+  }
+};
+
 module.exports.init = (io) => {
   const pairingRoomSocket = new PairingRoomSocket(io);
 
@@ -142,26 +171,7 @@ module.exports.init = (io) => {
       pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = true;
       console.log(socket.handshake.query.profileId, ' has been added to: ', room);
       socket.join(`gameRoom${room.getRoomId()}`);
-      if (room.isFull()) {
-        room.retrievePrompt()
-          .then(() => {
-            console.log('the room with the prompt is:', room);
-            const sessionData = {
-              profileId1: room.getPlayers()[0].profileId,
-              profileId2: room.getPlayers()[1].profileId,
-              prompt: room.getPrompt(),
-              roomId: room.getRoomId(),
-              code: null,
-              startedAt: new Date(),
-              testResults: {}
-            };
-            io.sockets.in(`gameRoom${room.getRoomId()}`)
-              .emit('startSession', sessionData);
-          })
-          .catch(err => {
-            console.log('there was an error:', err);
-          });
-      }
+      populateWithPrompt(room, io);
     });
 
     socket.on('friends list', function(data) {
@@ -174,7 +184,6 @@ module.exports.init = (io) => {
         return friend;
       });
       socket.emit('friends list', friends);
-
     });
 
     socket.on('request session', function(friend) {
@@ -187,16 +196,20 @@ module.exports.init = (io) => {
           partner.inRoom = true;
           io.sockets.connected[partner.socket].emit('room request', {roomId: room.getRoomId()});
         } else {
-
-          //TODO emit request to failed
+          socket.emit('room request failure', 'something happed');
+          console.log('roomRequest Failed, because that person is already in a room');
         }
       }
-      
-
-
-      // console.log('friend you want to join:', friend);
-
     });
+
+    socket.on('room request', function(roomId) {
+      room = pairingRoomSocket.fillPrivate(socket.id, socket.handshake.query.rating, socket.handshake.query.profileId, roomId);
+      pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = true;
+      console.log(socket.handshake.query.profileId, ' has been added to: ', room);
+      socket.join(`gameRoom${room.getRoomId()}`);
+      populateWithPrompt(room, io);
+    });
+
     socket.on('end session', (modalType) => {
       io.sockets.in(`gameRoom${room.getRoomId()}`).emit('end session', modalType);
     });
