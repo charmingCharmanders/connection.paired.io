@@ -67,16 +67,13 @@ module.exports.init = (io) => {
   console.log('running init, so waiting for a connection');
   
   io.on('connection', (socket) => {
-    console.log(socket.id, socket.handshake.query, 'user connected!');
     var room;
     pairingRoomSocket.userCount++;
-    pairingRoomSocket.usersOnline[socket.handshake.query.profileId]=false;
-    console.log('users online: ', pairingRoomSocket.usersOnline);
-    
+    pairingRoomSocket.usersOnline[socket.handshake.query.profileId]={inRoom: false};
     io.sockets.emit('users online', pairingRoomSocket.userCount);
     socket.on('join room', function() {
       room = pairingRoomSocket.addPlayer(socket.id, socket.handshake.query.rating, socket.handshake.query.profileId);
-      pairingRoomSocket.usersOnline[socket.handshake.query.profileId] = true;
+      pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = true;
       console.log(socket.handshake.query.profileId, ' has been added to: ', room);
       socket.join(`gameRoom${room.getRoomId()}`);
       if (room.isFull()) {
@@ -99,6 +96,27 @@ module.exports.init = (io) => {
             console.log('there was an error:', err);
           });
       }
+    });
+
+    socket.on('request session', function(requestedUserId) {
+      console.log('userId:', requestedUserId);
+    });
+
+    socket.on('friends list', function(data) {
+      var friends = data.friendArray.map((friend)=>{
+        var localFriendData = pairingRoomSocket.usersOnline[friend.friend.profileId];
+        if(localFriendData) {
+          friend.online = true;
+          friend.inRoom = localFriendData.inRoom;
+        }
+        return friend;
+      });
+      socket.emit('friends list', friends);
+      console.log(friends);
+    });
+
+    socket.on('send room request', function() {
+      console.log('reached the endpoint for the send room request', socket.handshake.query);
     });
 
     socket.on('leave room', function() {
@@ -126,13 +144,9 @@ module.exports.init = (io) => {
     });
 
     socket.on('disconnect', function() {
-      //update the users in a room and emit:
       pairingRoomSocket.userCount--;
       delete pairingRoomSocket.usersOnline[socket.handshake.query.profileId];
-
       io.sockets.emit('users online', pairingRoomSocket.userCount);
-
-
       console.log(socket.id, ' user disconnected!');
       if(room) {
         console.log(socket.id, ' user is leaving room ',room.getRoomId());
