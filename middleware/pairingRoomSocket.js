@@ -36,6 +36,13 @@ class PairingRoomSocket {
     return room;
   }
 
+  addPrivateRoom(playerId, playerRating, profileId) {
+    var room = new PairingRoom(++this.roomCount, helpers.translateRatingToDifficulty(playerRating));
+    room.addPlayer(playerId, playerRating, profileId);
+    this.rooms[room.getRoomId()] = room;
+    return room;
+  }
+
   removeRoom(roomId) {
     if (this.rooms[roomId]) {
       this.rooms[roomId] = undefined;
@@ -128,7 +135,7 @@ module.exports.init = (io) => {
   io.on('connection', (socket) => {
     var room;
     pairingRoomSocket.userCount++;
-    pairingRoomSocket.usersOnline[socket.handshake.query.profileId]={inRoom: false};
+    pairingRoomSocket.usersOnline[socket.handshake.query.profileId]={inRoom: false, socket: socket.id};
     io.sockets.emit('users online', pairingRoomSocket.userCount);
     socket.on('join room', function() {
       room = pairingRoomSocket.addPlayer(socket.id, socket.handshake.query.rating, socket.handshake.query.profileId);
@@ -157,13 +164,9 @@ module.exports.init = (io) => {
       }
     });
 
-    socket.on('request session', function(requestedUserId) {
-      console.log('userId:', requestedUserId);
-    });
-
     socket.on('friends list', function(data) {
       var friends = data.friendArray.map((friend)=>{
-        var localFriendData = pairingRoomSocket.usersOnline[friend.friend.profileId];
+        var localFriendData = pairingRoomSocket.usersOnline[friend.friend.id];
         if(localFriendData) {
           friend.online = true;
           friend.inRoom = localFriendData.inRoom;
@@ -171,12 +174,29 @@ module.exports.init = (io) => {
         return friend;
       });
       socket.emit('friends list', friends);
-      console.log(friends);
+
     });
 
-    socket.on('send room request', function() {
-      console.log('reached the endpoint for the send room request', socket.handshake.query);
-    
+    socket.on('request session', function(friend) {
+      //TODO
+      var partner = pairingRoomSocket.usersOnline[friend.id];
+      console.log('found the partner you are looking for:', partner);
+      if(partner) {
+        if(!partner.inRoom) {
+          room = pairingRoomSocket.addPrivateRoom(socket.id, friend.rating, friend.id);
+          partner.inRoom = true;
+          io.sockets.connected[partner.socket].emit('room request', {roomId: room.getRoomId()});
+        } else {
+
+          //TODO emit request to failed
+        }
+      }
+      
+
+
+      // console.log('friend you want to join:', friend);
+
+    });
     socket.on('end session', (modalType) => {
       io.sockets.in(`gameRoom${room.getRoomId()}`).emit('end session', modalType);
     });
