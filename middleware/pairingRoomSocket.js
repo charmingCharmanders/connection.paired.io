@@ -61,6 +61,65 @@ const assert = (expectedBehavior, descriptionOfCorrectBehavior) => {
   }
 };
 
+const runTests = (code, tests) => {
+  const results = {
+    error: null,
+    testsCount: 0,
+    testsPassed: 0,
+    tests: []
+  };
+  try {
+    // If function contains error it will be thrown
+    eval(code);
+    // Otherwise run the below code
+    const functionBody = code.slice(code.indexOf('{') + 1, code.lastIndexOf('}'));
+    const functionArgs = code.match(/function[^(]*\(([^)]*)\)/);
+    const functionCode = new Function(functionArgs[1], functionBody);
+
+    tests.models.forEach(test => {
+      const functionParams = JSON.parse(`[${test.attributes.arguments}]`);
+      const functionOutput = functionCode.apply(null, functionParams);
+      const expectedOutput = JSON.parse(`${test.attributes.expectedOutput}`);
+
+      results.testsCount = results.testsCount + 1;
+
+      if (functionOutput === expectedOutput) {
+        results.testsPassed = results.testsPassed + 1;
+      }
+
+      results.tests.push({
+        description: test.attributes.description,
+        result: assert(functionOutput === expectedOutput, `expected ${functionOutput} to equal ${expectedOutput}`)
+      });
+    });
+  } catch (e) {
+    if (e instanceof RangeError) {
+      results.error = `Range Error: ${e.message}`;
+    } else if (e instanceof ReferenceError) {
+      results.error = `Reference Error: ${e.message}`;
+    } else if (e instanceof SyntaxError) {
+      results.error = `Syntax Error: ${e.message}`;
+    } else if (e instanceof TypeError) {
+      results.error = `Type Error: ${e.message}`;
+    } else {
+      results.error = 'Error: An unexpected error occured';
+    }
+  } finally {
+    return results;
+  }
+};
+
+const calculateSessionScore = (timeLimitInSeconds, promptTime, promptDifficulty, tests, testsPassed) => {
+  let diffObj = {1: 10, 2: 50, 3: 250, 4: 1000};
+  let percentageOfTimeLimit = (timeLimitInSeconds - (promptTime)) / timeLimitInSeconds;
+  let score = ((percentageOfTimeLimit * .40) + .60) * diffObj[promptDifficulty] * (testsPassed / tests);
+  if (promptDifficulty === 1) {
+    return score;
+  } else {
+    return score - (score % 5);
+  }
+};
+
 module.exports.init = (io) => {
   const pairingRoomSocket = new PairingRoomSocket(io);
 
@@ -117,6 +176,9 @@ module.exports.init = (io) => {
 
     socket.on('send room request', function() {
       console.log('reached the endpoint for the send room request', socket.handshake.query);
+    
+    socket.on('end session', (modalType) => {
+      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('end session', modalType);
     });
 
     socket.on('leave room', function() {
@@ -131,16 +193,67 @@ module.exports.init = (io) => {
       }
     });
 
-    socket.on('submit code', () => {
-      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('submit code');
-      if(room) {
-        console.log(socket.id, ' user is leaving room ',room.getRoomId());
-        room.removePlayer(socket.id);
-        socket.leave(`gameRoom${room.getRoomId()}`);
-        if (room.isEmpty()) {
-          pairingRoomSocket.removeRoom(room.getRoomId());
-        }
-      }
+    socket.on('submit code', (modalType, session, code) => {
+      models.Test
+        .where({ promptId: session.prompt.id })
+        .fetchAll()
+        .then(tests => {
+          const testResults = runTests(code, tests);
+          const sessionEndedAt = new Date();
+          const sessionScore = calculateSessionScore(
+            3600,
+            (Date.parse(sessionEndedAt) - Date.parse(session.startedAt)) / 1000,
+            session.prompt.difficulty,
+            testResults.testsCount,
+            testResults.testsPassed);
+
+          models.Session
+            .forge({
+              profileId1: session.profileId1,
+              profileId2: session.profileId2,
+              promptId: session.prompt.id,
+              rating: sessionScore,
+              solutionCode: code,
+              numberOfTests: testResults.testsCount,
+              numberOfTestsPassed: testResults.testsPassed,
+              startedAt: session.startedAt,
+              endedAt: sessionEndedAt
+            })
+            .save()
+            .catch(err => {
+              console.error(err);
+            });
+
+          models.Profile
+            .where({ id: session.profileId1 })
+            .fetch()
+            .then(profile => {
+              profile.save({
+                rating: profile.attributes.rating + sessionScore
+              }, { method: 'update' });
+            })
+            .catch(err => {
+              console.error(err);
+            });
+
+          models.Profile
+            .where({ id: session.profileId2 })
+            .fetch()
+            .then(profile => {
+              profile.save({
+                rating: profile.attributes.rating + sessionScore
+              }, { method: 'update' });
+            })
+            .catch(err => {
+              console.error(err);
+            });
+        })
+        .catch(err => {
+          console.error(err);
+        });
+
+      // Emit to everyone in room
+      io.sockets.in(`gameRoom${room.getRoomId()}`).emit('end session', modalType);
     });
 
     socket.on('disconnect', function() {
@@ -169,52 +282,9 @@ module.exports.init = (io) => {
         .where({ promptId: promptId })
         .fetchAll()
         .then(tests => {
-          const results = {
-            error: null,
-            testsCount: 0,
-            testsPassed: 0,
-            tests: []
-          };
-          try {
-            // If function contains error it will be thrown
-            eval(code);
-            // Otherwise run the below code
-            const functionBody = code.slice(code.indexOf('{') + 1, code.lastIndexOf('}'));
-            const functionArgs = code.match(/function[^(]*\(([^)]*)\)/);
-            const functionCode = new Function(functionArgs[1], functionBody);
-
-            tests.models.forEach(test => {
-              const functionParams = JSON.parse(`[${test.attributes.arguments}]`);
-              const functionOutput = functionCode.apply(null, functionParams);
-              const expectedOutput = JSON.parse(`${test.attributes.expectedOutput}`);
-
-              results.testsCount = results.testsCount + 1;
-
-              if (functionOutput === expectedOutput) {
-                results.testsPassed = results.testsPassed + 1;
-              }
-
-              results.tests.push({
-                description: test.attributes.description,
-                result: assert(functionOutput === expectedOutput, `expected ${functionOutput} to equal ${expectedOutput}`)
-              });
-            });
-          } catch (e) {
-            if (e instanceof RangeError) {
-              results.error = `Range Error: ${e.message}`;
-            } else if (e instanceof ReferenceError) {
-              results.error = `Reference Error: ${e.message}`;
-            } else if (e instanceof SyntaxError) {
-              results.error = `Syntax Error: ${e.message}`;
-            } else if (e instanceof TypeError) {
-              results.error = `Type Error: ${e.message}`;
-            } else {
-              results.error = 'Error: An unexpected error occured';
-            }
-          } finally {
-            // Emit results to everyone in room
-            io.sockets.in(`gameRoom${room.getRoomId()}`).emit('testResults', results);
-          }
+          const testResults = runTests(code, tests);
+          // Emit results to everyone in room
+          io.sockets.in(`gameRoom${room.getRoomId()}`).emit('testResults', testResults);
         })
         .catch(err => {
           console.error(err);
