@@ -1,7 +1,6 @@
 const PairingRoom = require('../socketModels/pairingRooms.js');
 const helpers = require('./helpers');
 const models = require('../db/models');
-// const helper = require('../socketModels/h')
 
 class PairingRoomSocket {
   constructor(io) {
@@ -187,6 +186,14 @@ module.exports.init = (io) => {
       socket.emit('friends list', friends);
     });
 
+    socket.on('cancel session request', function(partnerId) {
+      console.log('about to cancel a request for:', partnerId);
+      if(partnerId) {
+        pairingRoomSocket.usersOnline[partnerId].inRoom = false;
+        io.sockets.connected[pairingRoomSocket.usersOnline[partnerId].socket].emit('session request canceled');
+      }
+    });
+
     socket.on('request session', function(friend) {
       var partner = pairingRoomSocket.usersOnline[friend.id];
       if(partner) {
@@ -199,7 +206,7 @@ module.exports.init = (io) => {
             {
               roomId: room.getRoomId(),
               firstName: socket.handshake.query.firstName,
-              lastName: socket.handshake.query.lastName
+              lastName: socket.handshake.query.lastName,
             });
         } else {
           console.log('roomRequest Failed, because that person is already in a room');
