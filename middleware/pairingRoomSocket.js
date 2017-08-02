@@ -164,7 +164,8 @@ module.exports.init = (io) => {
   io.on('connection', (socket) => {
     var room;
     pairingRoomSocket.userCount++;
-    pairingRoomSocket.usersOnline[socket.handshake.query.profileId]={inRoom: false, socket: socket.id};
+    pairingRoomSocket.usersOnline[socket.handshake.query.profileId]=
+      { inRoom: false, socket: socket.id };
     io.sockets.emit('users online', pairingRoomSocket.userCount);
     socket.on('join room', function() {
       room = pairingRoomSocket.addPlayer(socket.id, socket.handshake.query.rating, socket.handshake.query.profileId);
@@ -194,7 +195,12 @@ module.exports.init = (io) => {
           pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = true;
           partner.inRoom = true;
           socket.join(`gameRoom${room.getRoomId()}`);
-          io.sockets.connected[partner.socket].emit('room request', {roomId: room.getRoomId()});
+          io.sockets.connected[partner.socket].emit('room request', 
+            {
+              roomId: room.getRoomId(),
+              firstName: socket.handshake.query.firstName,
+              lastName: socket.handshake.query.lastName
+            });
         } else {
           console.log('roomRequest Failed, because that person is already in a room');
         }
