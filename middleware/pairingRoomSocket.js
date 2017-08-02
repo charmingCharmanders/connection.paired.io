@@ -179,6 +179,9 @@ module.exports.init = (io) => {
         if(localFriendData) {
           friend.online = true;
           friend.inRoom = localFriendData.inRoom;
+        }else {
+          friend.online = false;
+          friend.inRoom = false;
         }
         return friend;
       });
