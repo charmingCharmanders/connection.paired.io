@@ -187,27 +187,37 @@ module.exports.init = (io) => {
     });
 
     socket.on('request session', function(friend) {
-      //TODO
       var partner = pairingRoomSocket.usersOnline[friend.id];
-      console.log('found the partner you are looking for:', partner);
       if(partner) {
         if(!partner.inRoom) {
-          room = pairingRoomSocket.addPrivateRoom(socket.id, friend.rating, friend.id);
+          room = pairingRoomSocket.addPrivateRoom(socket.id, socket.handshake.query.rating, socket.handshake.query.profileId);
+          pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = true;
           partner.inRoom = true;
+          socket.join(`gameRoom${room.getRoomId()}`);
           io.sockets.connected[partner.socket].emit('room request', {roomId: room.getRoomId()});
         } else {
-          socket.emit('room request failure', 'something happed');
           console.log('roomRequest Failed, because that person is already in a room');
         }
       }
     });
 
-    socket.on('room request', function(roomId) {
+    socket.on('approve session request', function(roomId) {
       room = pairingRoomSocket.fillPrivate(socket.id, socket.handshake.query.rating, socket.handshake.query.profileId, roomId);
+      console.log('the new room is:', room);
       pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = true;
       console.log(socket.handshake.query.profileId, ' has been added to: ', room);
       socket.join(`gameRoom${room.getRoomId()}`);
       populateWithPrompt(room, io);
+    });
+
+    socket.on('reject session request', function(roomId) {
+      console.log('reject session request');
+      room = pairingRoomSocket.rooms[roomId];
+      console.log('room is:', room);
+      pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = false;
+      if(room){
+        io.sockets.in(`gameRoom${room.getRoomId()}`).emit('session request rejected');
+      }
     });
 
     socket.on('end session', (modalType) => {
