@@ -5,6 +5,7 @@ const models = require('../db/models');
 
 class PairingRoomSocket {
   constructor(io) {
+    this.usersOnline={};
     this.io = io;
     this.roomCount = 0;
     this.rooms = {};
@@ -27,10 +28,23 @@ class PairingRoomSocket {
     return room;
   }
 
+  fillPrivate(playerId, profileRating, profileId, roomId) {
+    var room = this.rooms[roomId];
+    room.addPlayer(playerId, profileRating, profileId);
+    return room;
+  }
+
   addNewRoom(playerId, playerRating, profileId) {
     var room = new PairingRoom(++this.roomCount, helpers.translateRatingToDifficulty(playerRating));
     room.addPlayer(playerId, playerRating, profileId);
     this.queuedRooms.push(room);
+    this.rooms[room.getRoomId()] = room;
+    return room;
+  }
+
+  addPrivateRoom(playerId, playerRating, profileId) {
+    var room = new PairingRoom(++this.roomCount, helpers.translateRatingToDifficulty(playerRating));
+    room.addPlayer(playerId, playerRating, profileId);
     this.rooms[room.getRoomId()] = room;
     return room;
   }
@@ -119,40 +133,90 @@ const calculateSessionScore = (timeLimitInSeconds, promptTime, promptDifficulty,
   }
 };
 
+const populateWithPrompt = function(room, io){
+  if (room.isFull()) {
+    room.retrievePrompt()
+      .then(() => {
+        console.log('the room with the prompt is:', room);
+        const sessionData = {
+          profileId1: room.getPlayers()[0].profileId,
+          profileId2: room.getPlayers()[1].profileId,
+          prompt: room.getPrompt(),
+          roomId: room.getRoomId(),
+          code: null,
+          startedAt: new Date(),
+          testResults: {}
+        };
+        io.sockets.in(`gameRoom${room.getRoomId()}`)
+          .emit('startSession', sessionData);
+      })
+      .catch(err => {
+        console.log('there was an error:', err);
+      });
+  }
+};
+
 module.exports.init = (io) => {
   const pairingRoomSocket = new PairingRoomSocket(io);
 
   console.log('running init, so waiting for a connection');
   
   io.on('connection', (socket) => {
-    console.log(socket.id, socket.handshake.query, 'user connected!');
     var room;
     pairingRoomSocket.userCount++;
+    pairingRoomSocket.usersOnline[socket.handshake.query.profileId]={inRoom: false, socket: socket.id};
     io.sockets.emit('users online', pairingRoomSocket.userCount);
-
     socket.on('join room', function() {
-      room = pairingRoomSocket.addPlayer(socket.id, socket.handshake.query.profileRating, socket.handshake.query.profileId);
+      room = pairingRoomSocket.addPlayer(socket.id, socket.handshake.query.rating, socket.handshake.query.profileId);
+      pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = true;
       console.log(socket.handshake.query.profileId, ' has been added to: ', room);
       socket.join(`gameRoom${room.getRoomId()}`);
-      if (room.isFull()) {
-        room.retrievePrompt()
-          .then(() => {
-            console.log('the room with the prompt is:', room);
-            const sessionData = {
-              profileId1: room.getPlayers()[0].profileId,
-              profileId2: room.getPlayers()[1].profileId,
-              prompt: room.getPrompt(),
-              roomId: room.getRoomId(),
-              code: null,
-              startedAt: new Date(),
-              testResults: {}
-            };
-            io.sockets.in(`gameRoom${room.getRoomId()}`)
-              .emit('startSession', sessionData);
-          })
-          .catch(err => {
-            console.log('there was an error:', err);
-          });
+      populateWithPrompt(room, io);
+    });
+
+    socket.on('friends list', function(data) {
+      var friends = data.friendArray.map((friend)=>{
+        var localFriendData = pairingRoomSocket.usersOnline[friend.friend.id];
+        if(localFriendData) {
+          friend.online = true;
+          friend.inRoom = localFriendData.inRoom;
+        }
+        return friend;
+      });
+      socket.emit('friends list', friends);
+    });
+
+    socket.on('request session', function(friend) {
+      var partner = pairingRoomSocket.usersOnline[friend.id];
+      if(partner) {
+        if(!partner.inRoom) {
+          room = pairingRoomSocket.addPrivateRoom(socket.id, socket.handshake.query.rating, socket.handshake.query.profileId);
+          pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = true;
+          partner.inRoom = true;
+          socket.join(`gameRoom${room.getRoomId()}`);
+          io.sockets.connected[partner.socket].emit('room request', {roomId: room.getRoomId()});
+        } else {
+          console.log('roomRequest Failed, because that person is already in a room');
+        }
+      }
+    });
+
+    socket.on('approve session request', function(roomId) {
+      room = pairingRoomSocket.fillPrivate(socket.id, socket.handshake.query.rating, socket.handshake.query.profileId, roomId);
+      console.log('the new room is:', room);
+      pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = true;
+      console.log(socket.handshake.query.profileId, ' has been added to: ', room);
+      socket.join(`gameRoom${room.getRoomId()}`);
+      populateWithPrompt(room, io);
+    });
+
+    socket.on('reject session request', function(roomId) {
+      console.log('reject session request');
+      room = pairingRoomSocket.rooms[roomId];
+      console.log('room is:', room);
+      pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = false;
+      if(room){
+        io.sockets.in(`gameRoom${room.getRoomId()}`).emit('session request rejected');
       }
     });
 
@@ -163,6 +227,7 @@ module.exports.init = (io) => {
     socket.on('leave room', function() {
       if(room) {
         console.log(socket.id, ' user is leaving room ',room.getRoomId());
+        pairingRoomSocket.usersOnline[socket.handshake.query.profileId] = false;
         room.removePlayer(socket.id);
         socket.leave(`gameRoom${room.getRoomId()}`);
         if (room.isEmpty()) {
@@ -235,11 +300,9 @@ module.exports.init = (io) => {
     });
 
     socket.on('disconnect', function() {
-      //update the users in a room and emit:
       pairingRoomSocket.userCount--;
+      delete pairingRoomSocket.usersOnline[socket.handshake.query.profileId];
       io.sockets.emit('users online', pairingRoomSocket.userCount);
-
-
       console.log(socket.id, ' user disconnected!');
       if(room) {
         console.log(socket.id, ' user is leaving room ',room.getRoomId());
