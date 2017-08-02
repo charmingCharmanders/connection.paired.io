@@ -1,7 +1,6 @@
 const PairingRoom = require('../socketModels/pairingRooms.js');
 const helpers = require('./helpers');
 const models = require('../db/models');
-// const helper = require('../socketModels/h')
 
 class PairingRoomSocket {
   constructor(io) {
@@ -170,7 +169,6 @@ module.exports.init = (io) => {
     socket.on('join room', function() {
       room = pairingRoomSocket.addPlayer(socket.id, socket.handshake.query.rating, socket.handshake.query.profileId);
       pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = true;
-      console.log(socket.handshake.query.profileId, ' has been added to: ', room);
       socket.join(`gameRoom${room.getRoomId()}`);
       populateWithPrompt(room, io);
     });
@@ -181,10 +179,20 @@ module.exports.init = (io) => {
         if(localFriendData) {
           friend.online = true;
           friend.inRoom = localFriendData.inRoom;
+        }else {
+          friend.online = false;
+          friend.inRoom = false;
         }
         return friend;
       });
       socket.emit('friends list', friends);
+    });
+
+    socket.on('cancel session request', function(partnerId) {
+      if(partnerId) {
+        pairingRoomSocket.usersOnline[partnerId].inRoom = false;
+        io.sockets.connected[pairingRoomSocket.usersOnline[partnerId].socket].emit('session request canceled');
+      }
     });
 
     socket.on('request session', function(friend) {
@@ -199,7 +207,7 @@ module.exports.init = (io) => {
             {
               roomId: room.getRoomId(),
               firstName: socket.handshake.query.firstName,
-              lastName: socket.handshake.query.lastName
+              lastName: socket.handshake.query.lastName,
             });
         } else {
           console.log('roomRequest Failed, because that person is already in a room');
@@ -209,17 +217,13 @@ module.exports.init = (io) => {
 
     socket.on('approve session request', function(roomId) {
       room = pairingRoomSocket.fillPrivate(socket.id, socket.handshake.query.rating, socket.handshake.query.profileId, roomId);
-      console.log('the new room is:', room);
       pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = true;
-      console.log(socket.handshake.query.profileId, ' has been added to: ', room);
       socket.join(`gameRoom${room.getRoomId()}`);
       populateWithPrompt(room, io);
     });
 
     socket.on('reject session request', function(roomId) {
-      console.log('reject session request');
       room = pairingRoomSocket.rooms[roomId];
-      console.log('room is:', room);
       pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = false;
       if(room){
         io.sockets.in(`gameRoom${room.getRoomId()}`).emit('session request rejected');
@@ -232,7 +236,6 @@ module.exports.init = (io) => {
 
     socket.on('leave room', function() {
       if(room) {
-        console.log(socket.id, ' user is leaving room ',room.getRoomId());
         pairingRoomSocket.usersOnline[socket.handshake.query.profileId] = false;
         room.removePlayer(socket.id);
         socket.leave(`gameRoom${room.getRoomId()}`);
@@ -311,7 +314,6 @@ module.exports.init = (io) => {
       io.sockets.emit('users online', pairingRoomSocket.userCount);
       console.log(socket.id, ' user disconnected!');
       if(room) {
-        console.log(socket.id, ' user is leaving room ',room.getRoomId());
         room.removePlayer(socket.id);
         socket.leave(`gameRoom${room.getRoomId()}`);
         if (room.isEmpty()) {
