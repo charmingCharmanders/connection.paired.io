@@ -1,7 +1,7 @@
 const translateRatingToDifficulty = function (rating) {
   if(rating < 100) {
     return 1;
-  } else if(rating < 5000) {
+  } else if(rating < 2000) {
     return 2;
   } else if(rating < 20000) {
     return 3;
