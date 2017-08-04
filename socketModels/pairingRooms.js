@@ -51,7 +51,6 @@ class PairingRoom {
         .where({ difficulty: this.difficulty})
         .fetchAll()
         .then(prompts => {
-          console.log('prompts', prompts)
           const random = Math.floor(Math.random() * prompts.models.length);
           this.prompt = prompts.models[random].attributes;
           this.code = prompts.models[random].attributes.skeletonCode;
