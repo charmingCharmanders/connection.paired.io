@@ -89,15 +89,19 @@ const runTests = (code, tests) => {
     const functionCode = new Function(functionArgs[1], functionBody);
 
     tests.models.forEach(test => {
-      const functionParams = JSON.parse(`[${test.attributes.arguments}]`);
-      const functionOutput = functionCode.apply(null, functionParams);
-      const expectedOutput = JSON.parse(`${test.attributes.expectedOutput}`);
+      let functionParams = JSON.parse(`[${test.attributes.arguments}]`);
+      let functionOutput = functionCode.apply(null, functionParams);
+      let expectedOutput = JSON.parse(`${test.attributes.expectedOutput}`);
+
 
       results.testsCount = results.testsCount + 1;
-
+      functionOutput = JSON.stringify(functionOutput);
+      expectedOutput = JSON.stringify(expectedOutput);
       if (functionOutput === expectedOutput) {
         results.testsPassed = results.testsPassed + 1;
       }
+
+
 
       results.tests.push({
         description: test.attributes.description,
@@ -159,7 +163,7 @@ module.exports.init = (io) => {
   const pairingRoomSocket = new PairingRoomSocket(io);
 
   console.log('running init, so waiting for a connection');
-  
+
   io.on('connection', (socket) => {
     var room;
     pairingRoomSocket.userCount++;
@@ -203,7 +207,7 @@ module.exports.init = (io) => {
           pairingRoomSocket.usersOnline[socket.handshake.query.profileId].inRoom = true;
           partner.inRoom = true;
           socket.join(`gameRoom${room.getRoomId()}`);
-          io.sockets.connected[partner.socket].emit('room request', 
+          io.sockets.connected[partner.socket].emit('room request',
             {
               roomId: room.getRoomId(),
               firstName: socket.handshake.query.firstName,
